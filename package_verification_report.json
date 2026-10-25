@@ -1,0 +1,17 @@
+{
+  "competition": "AWS Cloud Development & AgentCore Hackathon 2026",
+  "directory": "AWSCDS_OmniAgent2026",
+  "prize_pool_cash": "AWS Cash & Grand Podium Awards",
+  "banner_verified": true,
+  "banner_size_bytes": 190301,
+  "files_verified": [
+    "DEVPOST_SUBMISSION.md",
+    "README.md",
+    "aws_cds_agentcore_server.py",
+    "banner.png",
+    "index.html",
+    "template.yaml"
+  ],
+  "verification_status": "PASSED_FULL_STACK_PACKAGE_VERIFICATION",
+  "sha256": "09f541c4c7cd7bdd84a96df3bb857ebe4bcdd4dc8019e426f8090930c83a734e"
+}
