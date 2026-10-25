@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BedrockPulse CDS — Autonomous Omnichannel AgentCore Stack for
+  AWS End User Messaging Social (WhatsApp), AWS End User Messaging SMS/RCS v2,
+  Amazon SES v2, and Amazon Bedrock AgentCore.
+
+Parameters:
+  WhatsAppOriginationPhoneId:
+    Type: String
+    Default: phone-number-id-9f8e7d6c5b4a3210
+    Description: AWS End User Messaging Social WhatsApp Origination Phone Number ID
+  EumSmsRcsOriginationPoolId:
+    Type: String
+    Default: pool-0a9b8c7d6e5f4a3b2c1d
+    Description: AWS End User Messaging SMS/RCS Origination Pool ID
+  SesVerifiedSenderEmail:
+    Type: String
+    Default: concierge@bedrockpulse-cds.aws
+    Description: Verified Amazon SES v2 Sender Identity
+  BedrockAgentId:
+    Type: String
+    Default: AGENTCORE_CDS_OMNI_2026
+  BedrockAgentAliasId:
+    Type: String
+    Default: PROD_V2
+
+Resources:
+  # 1. Cross-Channel Unified Session & Entity Graph Table
+  OmnichannelContextTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BedrockPulseOmnichannelContext
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: customer_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: customer_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl_epoch
+        Enabled: true
+
+  # 2. Orchestrator Lambda Function
+  BedrockPulseOrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: bedrockpulse-cds-omnichannel-orchestrator
+      Runtime: python3.12
+      Handler: aws_cds_agentcore_server.lambda_handler
+      CodeUri: ./
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          AWS_CDS_DRY_RUN: "0"
+          AWS_EUM_WHATSAPP_PHONE_ID: !Ref WhatsAppOriginationPhoneId
+          AWS_EUM_SMS_RCS_ORIGINATION_ID: !Ref EumSmsRcsOriginationPoolId
+          AWS_SES_SENDER_EMAIL: !Ref SesVerifiedSenderEmail
+          BEDROCK_AGENT_ID: !Ref BedrockAgentId
+          BEDROCK_AGENT_ALIAS_ID: !Ref BedrockAgentAliasId
+          DYNAMODB_CONTEXT_TABLE: !Ref OmnichannelContextTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref OmnichannelContextTable
+        - Statement:
+            - Sid: AllowAWSEndUserMessagingSocialWhatsApp
+              Effect: Allow
+              Action:
+                - social-messaging:SendWhatsAppMessage
+                - social-messaging:PostWhatsAppMessageMedia
+                - social-messaging:GetWhatsAppMessageMedia
+              Resource: "*"
+            - Sid: AllowAWSEndUserMessagingSmsRcsV2
+              Effect: Allow
+              Action:
+                - sms-voice:SendTextMessage
+                - sms-voice:SendMediaMessage
+                - sms-voice:DescribePhoneNumbers
+              Resource: "*"
+            - Sid: AllowAmazonSESv2EmailDispatch
+              Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
+            - Sid: AllowAmazonBedrockAgentCoreInvocation
+              Effect: Allow
+              Action:
+                - bedrock:InvokeAgent
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        # Inbound EventBridge rule for WhatsApp & SMS/RCS two-way messages and delivery receipts
+        EumInboundAndFailoverEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.socialmessaging
+                - aws.sms-voice
+                - aws.ses
+
+Outputs:
+  OrchestratorFunctionArn:
+    Description: ARN of the BedrockPulse CDS Omnichannel Orchestrator Lambda
+    Value: !GetAtt BedrockPulseOrchestratorFunction.Arn
+  ContextTableName:
+    Description: DynamoDB table storing cross-channel customer memory for Bedrock AgentCore
+    Value: !Ref OmnichannelContextTable
